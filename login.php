@@ -16,12 +16,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($errors === []) {
         $pdo = getDatabaseConnection();
-        $statement = $pdo->prepare('SELECT id, password_hash FROM users WHERE email = :email');
-        $statement->execute(['email' => $email]);
+        $statement = $pdo->prepare('SELECT id, password_hash FROM users WHERE email = ?');
+        $statement->execute([$email]);
         $user = $statement->fetch();
 
         if ($user && password_verify($password, $user['password_hash'])) {
-            $_SESSION['user_id'] = (int) $user['id'];
+            $_SESSION['user_id'] = (int)$user['id'];
             header('Location: dashboard.php');
             exit;
         }
@@ -37,8 +37,11 @@ require_once __DIR__ . '/includes/layout.php';
     <div class="form-wrap">
         <h1>Login</h1>
         <?php foreach ($errors as $error): ?>
-            <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
-        <?php endforeach; ?>
+        <div class="alert alert-error">
+            <?= htmlspecialchars($error)?>
+        </div>
+        <?php
+endforeach; ?>
 
         <form method="post" action="login.php">
             <label for="email">Email</label>
@@ -49,8 +52,10 @@ require_once __DIR__ . '/includes/layout.php';
 
             <button type="submit">Login</button>
         </form>
+        <p>Don't have an account? <a href="register.php">Register here</a></p>
     </div>
 </main>
 <script src="assets/js/app.js"></script>
 </body>
+
 </html>

@@ -5,7 +5,6 @@ declare(strict_types=1);
 require_once __DIR__ . '/auth.php';
 
 $errors = [];
-$success = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $fullName = trim($_POST['full_name'] ?? '');
@@ -15,36 +14,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($fullName === '' || $email === '' || $password === '') {
         $errors[] = 'All fields are required.';
     }
-
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Please enter a valid email address.';
     }
-
-    if (strlen($password) < 6) {
+    elseif (strlen($password) < 6) {
         $errors[] = 'Password must be at least 6 characters.';
     }
 
     if ($errors === []) {
         try {
             $pdo = getDatabaseConnection();
-            $statement = $pdo->prepare(
-                'INSERT INTO users (full_name, email, password_hash, created_at)
-                 VALUES (:full_name, :email, :password_hash, :created_at)'
-            );
-            $statement->execute([
-                'full_name' => $fullName,
-                'email' => $email,
-                'password_hash' => password_hash($password, PASSWORD_DEFAULT),
-                'created_at' => date('c'),
-            ]);
+            $pdo->beginTransaction();
 
-            $userId = (int) $pdo->lastInsertId();
-            seedFeesForUser($userId);
+            // Table 1: users
+            $stmt = $pdo->prepare('INSERT INTO users (full_name, email, password_hash) VALUES (?, ?, ?)');
+            $stmt->execute([$fullName, $email, password_hash($password, PASSWORD_DEFAULT)]);
+            $userId = (int)$pdo->lastInsertId();
+
+            // Table 2: user_profiles
+            $stmt = $pdo->prepare('INSERT INTO user_profiles (user_id) VALUES (?)');
+            $stmt->execute([$userId]);
+
+            // Table 3: fees (example seed)
+            $stmt = $pdo->prepare('INSERT INTO fees (user_id, month, amount, due_date, status) VALUES (?, ?, ?, ?, ?)');
+            $stmt->execute([$userId, date('F'), 1000.00, date('Y-m-d', strtotime('+30 days')), 'Unpaid']);
+
+            $pdo->commit();
             $_SESSION['user_id'] = $userId;
             header('Location: dashboard.php');
             exit;
-        } catch (PDOException $exception) {
-            $errors[] = 'Email already exists. Please login.';
+        }
+        catch (PDOException $e) {
+            $pdo->rollBack();
+            $errors[] = 'Email already exists or error occurred.';
         }
     }
 }
@@ -56,12 +58,11 @@ require_once __DIR__ . '/includes/layout.php';
     <div class="form-wrap">
         <h1>Create Account</h1>
         <?php foreach ($errors as $error): ?>
-            <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
-        <?php endforeach; ?>
-
-        <?php if ($success): ?>
-            <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
-        <?php endif; ?>
+        <div class="alert alert-error">
+            <?= htmlspecialchars($error)?>
+        </div>
+        <?php
+endforeach; ?>
 
         <form method="post" action="register.php">
             <label for="full_name">Full Name</label>
@@ -75,8 +76,10 @@ require_once __DIR__ . '/includes/layout.php';
 
             <button type="submit">Register</button>
         </form>
+        <p>Already have an account? <a href="login.php">Login here</a></p>
     </div>
 </main>
 <script src="assets/js/app.js"></script>
 </body>
+
 </html>

@@ -15,8 +15,8 @@ function currentUser(): ?array
     }
 
     $pdo = getDatabaseConnection();
-    $statement = $pdo->prepare('SELECT id, full_name, email, created_at FROM users WHERE id = :id');
-    $statement->execute(['id' => $_SESSION['user_id']]);
+    $statement = $pdo->prepare('SELECT id, full_name, email, created_at FROM users WHERE id = ?');
+    $stmt_success = $statement->execute([$_SESSION['user_id']]);
 
     $user = $statement->fetch();
 
@@ -36,10 +36,10 @@ function requireAuth(): void
 function seedFeesForUser(int $userId): void
 {
     $pdo = getDatabaseConnection();
-    $check = $pdo->prepare('SELECT COUNT(*) FROM fees WHERE user_id = :user_id');
-    $check->execute(['user_id' => $userId]);
+    $check = $pdo->prepare('SELECT COUNT(*) FROM fees WHERE user_id = ?');
+    $check->execute([$userId]);
 
-    if ((int) $check->fetchColumn() > 0) {
+    if ((int)$check->fetchColumn() > 0) {
         return;
     }
 
@@ -51,16 +51,16 @@ function seedFeesForUser(int $userId): void
 
     $insert = $pdo->prepare(
         'INSERT INTO fees (user_id, month, amount, due_date, status)
-         VALUES (:user_id, :month, :amount, :due_date, :status)'
+         VALUES (?, ?, ?, ?, ?)'
     );
 
     foreach ($samples as $sample) {
         $insert->execute([
-            'user_id' => $userId,
-            'month' => $sample['month'],
-            'amount' => $sample['amount'],
-            'due_date' => $sample['due_date'],
-            'status' => $sample['status'],
+            $userId,
+            $sample['month'],
+            $sample['amount'],
+            $sample['due_date'],
+            $sample['status'],
         ]);
     }
 }
